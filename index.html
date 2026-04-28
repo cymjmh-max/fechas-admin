@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fechas Administrativas</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: transparent;
+    padding: 6px;
+  }
+
+  .container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .card {
+    flex: 1 1 200px;
+    max-width: 320px;
+    min-width: 180px;
+    background: linear-gradient(135deg, #1b3a5c, #245d8a);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    transition: transform 0.2s;
+  }
+
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  }
+
+  .icon {
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .icon svg {
+    width: 20px;
+    height: 20px;
+    fill: #fff;
+  }
+
+  .info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .descripcion {
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.3;
+    margin-bottom: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .fecha-hora {
+    font-size: 12px;
+    font-weight: 700;
+    color: #ffd54f;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .fecha-hora .separador {
+    color: rgba(255,255,255,0.4);
+  }
+
+  .urgent {
+    background: linear-gradient(135deg, #b71c1c, #e53935);
+  }
+
+  .warning {
+    background: linear-gradient(135deg, #e65100, #f57c00);
+  }
+
+  .loading {
+    text-align: center;
+    padding: 12px;
+    color: #666;
+    font-size: 13px;
+    width: 100%;
+  }
+
+  .error-msg {
+    text-align: center;
+    padding: 12px;
+    color: #c00;
+    font-size: 13px;
+    width: 100%;
+  }
+</style>
+</head>
+<body>
+
+<div class="container" id="container">
+  <div class="loading">Cargando fechas...</div>
+</div>
+
+<script>
+var SHEET_ID = '1orkBWor9Ko07UICYUv0L5sCxrACwLhRQft0Bydbmq8Q';
+
+function getDaysUntil(fechaStr) {
+  if (!fechaStr) return 999;
+  var parts = fechaStr.split('/');
+  if (parts.length === 3) {
+    var target = new Date(parts[2], parts[1] - 1, parts[0]);
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Math.ceil((target - today) / (1000 * 60 * 60 * 24));
+  }
+  return 999;
+}
+
+function getCardClass(fechaStr) {
+  var days = getDaysUntil(fechaStr);
+  if (days < 0) return 'card urgent';
+  if (days <= 3) return 'card urgent';
+  if (days <= 7) return 'card warning';
+  return 'card';
+}
+
+function renderCards(data) {
+  var container = document.getElementById('container');
+  if (!data || data.length === 0) {
+    container.innerHTML = '<div class="loading">No hay fechas registradas</div>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < data.length; i++) {
+    var item = data[i];
+    var cardClass = getCardClass(item.fecha);
+    html += '<div class="' + cardClass + '">' +
+      '<div class="icon">' +
+        '<svg viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z"/></svg>' +
+      '</div>' +
+      '<div class="info">' +
+        '<div class="descripcion" title="' + item.descripcion + '">' + item.descripcion + '</div>' +
+        '<div class="fecha-hora">' +
+          '<span>' + item.fecha + '</span>' +
+          '<span class="separador">|</span>' +
+          '<span>' + item.hora + '</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+  container.innerHTML = html;
+}
+
+// Global callback for Google Sheets JSONP
+window.handleSheetData = function(response) {
+  try {
+    var rows = response.table.rows;
+    var data = [];
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var desc = row.c[0] ? (row.c[0].f || row.c[0].v || '') : '';
+      var fecha = row.c[1] ? (row.c[1].f || String(row.c[1].v || '')) : '';
+      var hora = row.c[2] ? (row.c[2].f || String(row.c[2].v || '')) : '';
+      if (desc) {
+        data.push({ descripcion: desc, fecha: fecha, hora: hora });
+      }
+    }
+    renderCards(data);
+  } catch (e) {
+    document.getElementById('container').innerHTML =
+      '<div class="error-msg">Error procesando los datos.</div>';
+  }
+};
+
+function loadData() {
+  var old = document.getElementById('sheetScript');
+  if (old) old.remove();
+
+  var script = document.createElement('script');
+  script.id = 'sheetScript';
+  script.src = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/gviz/tq?tqx=responseHandler:handleSheetData';
+  script.onerror = function() {
+    document.getElementById('container').innerHTML =
+      '<div class="error-msg">Error cargando las fechas. Verifique la conexion.</div>';
+  };
+  document.body.appendChild(script);
+}
+
+loadData();
+setInterval(loadData, 5 * 60 * 1000);
+</script>
+
+</body>
+</html>
